@@ -2,11 +2,13 @@
 
 A .NET backtesting framework for candlestick trading strategies, built to dispassionately validate claims about what works in the markets before risking real money.
 
-## Why this exists
+## Why did I do this?
 
 There's no shortage of trading strategies pitched online — YouTube videos, Discord servers, TikTok reels, paid courses. Almost all arrive with confident claims and impressive-looking charts. Almost none arrive with a rigorous backtest on real data.
 
-CandleLab exists because I wanted to answer a simple question: do these strategies actually work when you test them honestly? Not in the sense of "find a configuration where the backtest looks nice" — that's easy, and it's how people end up losing real money. In the sense of: take the strategy as specified, code it exactly, run it against a meaningful amount of real data, and see what happens.
+I created CandleLab because I wanted to answer a simple question, to myself as much as for everyone: do these strategies actually work when you test them honestly? Not in the sense of "find a configuration where the backtest looks nice" — that's easy, and it's what podcasters show you and how people end up losing real money in the real world. 
+
+What I've done here: take the strategy as specified (total text book), code it exactly, run it against a meaningful amount of real data, and see what happens.
 
 The first strategy I put through this process — a popular ICT "opening-range manipulation candle" setup — did not produce positive expectancy on SPY or QQQ over the last 12 months, in either directional interpretation, with or without relaxed filters. That finding is documented in the generated `analysis.html` report. The code, the data pipeline, and the methodology are all in this repo so you can reproduce it, argue with it, or test your own variants.
 
@@ -143,4 +145,4 @@ Written content (the README, the analysis commentary) is [CC BY 4.0](https://cre
 
 Don Chelladurai — [GitHub](https://github.com/donchelladurai)
 
-Not financial advice. This is personal research published for educational purposes. Anything in this repo that resembles trading guidance is coincidental, and you should never risk capital on a strategy you haven't independently validated.
+Not financial advice. This is personal research published for educational purposes. Anything in this repo that resembles trading guidance is coincidental, and you should never risk capital on a strategy you haven't independently validated. Trade safe ;)

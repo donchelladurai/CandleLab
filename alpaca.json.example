@@ -1,0 +1,5 @@
+{
+  "_comment": "Copy this file to alpaca.json in the solution root and fill in your credentials. alpaca.json is gitignored so your real keys won't be committed. Get your keys from https://app.alpaca.markets/paper/dashboard/overview (Paper Trading tab > View API Keys).",
+  "keyId": "YOUR_PAPER_API_KEY_ID_HERE",
+  "secretKey": "YOUR_PAPER_SECRET_KEY_HERE"
+}

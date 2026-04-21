@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\CandleLab.Domain\CandleLab.Domain.csproj" />
+    <ProjectReference Include="..\CandleLab.Strategies\CandleLab.Strategies.csproj" />
+    <ProjectReference Include="..\CandleLab.Execution\CandleLab.Execution.csproj" />
+    <ProjectReference Include="..\CandleLab.MarketData\CandleLab.MarketData.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="ReportTemplate.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="AnalysisTemplate.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

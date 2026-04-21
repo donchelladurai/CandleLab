@@ -1,0 +1,19 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+output/
+*.log
+
+# Fetched market data — keep out of source control, users fetch their own.
+data/*.csv
+!data/SPX_FiveMinutes.csv
+!data/SPX30_FiveMinutes.csv
+
+# Alpaca credentials — NEVER commit these.
+alpaca.json
+.env
+*.env

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\CandleLab.Domain\CandleLab.Domain.csproj" />
+  </ItemGroup>
+</Project>

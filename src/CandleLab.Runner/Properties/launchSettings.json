@@ -1,0 +1,34 @@
+{
+  "profiles": {
+    "★ Build analysis.html (the publishable artifact)": {
+      "commandName": "Project",
+      "commandLineArgs": "analyse symbols=SPY_iex,QQQ_iex modes=reversal,continuation out=./analysis.html",
+      "workingDirectory": "$(SolutionDir)"
+    },
+    "1. SPY reversal RELAXED (per-run report)": {
+      "commandName": "Project",
+      "commandLineArgs": "symbol=SPY_iex strategy=openingrange nohtf=true mode=reversal wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_spy_reversal",
+      "workingDirectory": "$(SolutionDir)"
+    },
+    "2. SPY continuation RELAXED (per-run report)": {
+      "commandName": "Project",
+      "commandLineArgs": "symbol=SPY_iex strategy=openingrange nohtf=true mode=continuation wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_spy_continuation",
+      "workingDirectory": "$(SolutionDir)"
+    },
+    "3. QQQ reversal RELAXED (per-run report)": {
+      "commandName": "Project",
+      "commandLineArgs": "symbol=QQQ_iex strategy=openingrange nohtf=true mode=reversal wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_qqq_reversal",
+      "workingDirectory": "$(SolutionDir)"
+    },
+    "4. QQQ continuation RELAXED (per-run report)": {
+      "commandName": "Project",
+      "commandLineArgs": "symbol=QQQ_iex strategy=openingrange nohtf=true mode=continuation wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_qqq_continuation",
+      "workingDirectory": "$(SolutionDir)"
+    },
+    "Fetch SPY+QQQ (iex+sip, last 12mo)": {
+      "commandName": "Project",
+      "commandLineArgs": "fetch symbols=SPY,QQQ feeds=iex,sip overwrite=true",
+      "workingDirectory": "$(SolutionDir)"
+    }
+  }
+}

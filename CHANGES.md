@@ -1,113 +1,115 @@
-# CHANGES — v0.7
+# CHANGES — v0.8
 
-Publishing-ready artifact. Everything is about making the analysis
-shareable.
+**Spec correction. All backtest results produced by v0.1 through v0.7 are
+invalid and should not be cited.**
 
-## New: `analyse` CLI verb
+## What was wrong
 
-```
-dotnet run --project src/CandleLab.Runner -- analyse \
-    symbols=SPY_iex,QQQ_iex \
-    modes=reversal,continuation \
-    out=./analysis.html
-```
+From v0.1 onwards the opening-range "manipulation candle" filter was
+implemented as:
 
-Runs the full grid of (symbol × mode) backtests in sequence and writes
-a single self-contained HTML file. The file contains:
+> both the upper AND lower wicks of the opening 15-min candle must be
+> at least 25% of the 14-period **15-minute** ATR
 
-- Masthead with title, subtitle, author, GitHub link
-- Three prose sections with placeholder DRAFT text: *What this is*,
-  *The claim*, *How I tested it*
-- Headline numbers table (trades, win %, net P&L, expectancy, PF, max DD)
-- Side-breakdown table (longs vs shorts within each run)
-- Pyramid-tranche split table with a "Key finding" callout explaining
-  why the 0%/100% split is mechanically deterministic
-- Interactive run switcher — tabs that swap between embedded per-run
-  charts, reusing the same hand-rolled SVG renderer as the single-run
-  report
-- Footer with CC BY 4.0 for writing, MIT for code, GitHub link
+The correct specification is:
 
-All in one HTML file, roughly 1–1.5 MB depending on trade counts.
-Portable via email, Slack, Discord, etc. without zipping.
+> the total size (high − low) of the opening 15-min candle must be at
+> least 25% of the 14-period **daily** ATR
 
-### Workflow
+Three differences, all material:
+1. **Total candle size, not wicks.** Significance is judged by the
+   candle's overall range, not by whether both extremes are touched.
+2. **Daily ATR, not 15-min ATR.** The reference volatility is the
+   instrument's typical daily range, two orders of magnitude larger
+   than the 15-min range.
+3. **Single threshold, not dual.** The old filter required *both*
+   wicks to independently pass; the corrected filter has one test.
 
-1. Fetch data (`fetch` verb) — or reuse existing CSVs
-2. `analyse` verb → `analysis.html`
-3. Open in a browser. DRAFT placeholders are visually highlighted
-   (orange sidebar, italic). Edit the HTML directly to fill them in —
-   no rebuild required
-4. Share
+The combined effect: the v0.1-v0.7 filter was dramatically more
+restrictive than the spec called for, rejecting most opening candles
+that should have qualified. All subsequent analysis (the 4-run grid
+showing negative expectancy, the 0%/100% pyramid-tranche finding, the
+"ICT doesn't work on SPY/QQQ" conclusion) was drawn from a strategy
+that wasn't implementing the specified rules.
 
-### Defaults
+This was my fault — an implementation error in the original translation
+of the spec to code that was never caught because the tests verified
+internal consistency rather than spec conformance.
 
-`analyse` without arguments runs:
-- Symbols: `SPY_iex,QQQ_iex`
-- Modes: `reversal,continuation`
-- Filters: the same RELAXED config used in v0.6 launch profiles
-  (`wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0`, HTF off)
-- Costs: SPY-sized defaults (`spread=0.005 slippage=0.02`)
+## What's been fixed
 
-Override via CLI args if you want a different grid.
+**Config changes in `OpeningRangeManipulationStrategyConfig`:**
+- Removed: `MinWickRatioOfAtr`
+- Added: `MinCandleSizeRatioOfDailyAtr` (default 0.25)
+- Added: `DailyAtrPeriod` (default 14)
+- Existing: `AtrPeriod` retained for downstream signal-candle body
+  normalisation only
 
-## New: `AnalysisReportWriter` + `AnalysisTemplate.html`
+**Strategy changes:**
+- New daily OHLC tracker — `_todayHigh`, `_todayLow`,
+  `_previousDailyClose` — updated each bar
+- New daily true-range queue, finalised on day rollover
+- New `CurrentDailyAtr()` helper alongside the existing 15-min one
+- Filter in `CheckOpeningRangeComplete` now tests
+  `(top - bottom) >= DailyAtr × MinCandleSizeRatioOfDailyAtr`
+- Debug log format updated
 
-Separate from the per-run `HtmlReportWriter`. The two writers share
-per-run payload logic (`HtmlReportWriter.BuildPayloadForRun` is now
-`internal` so the analysis writer can reuse it) so the embedded chart
-in the analysis is identical to the stand-alone per-run reports.
+**CLI changes:**
+- `wickratio=` → `sizeratio=`
+- All launch profiles updated
 
-Template is CSS-styled with a narrow reading column for prose and a
-wider column for tables and the interactive chart. Dark mode only.
+**Tests:**
+- `MinCandleSizeRatioOfDailyAtr = 0.25m` in base config
+- `DailyAtrPeriod = 2` in base config (fast warmup for tests)
+- New `Harness.FeedWarmupDaysBefore(testDay)` helper that feeds two
+  prior days of bars to warm the daily-ATR queue
+- Old per-test 15-min warmup calls removed and replaced
+- Fixture `FeedSmallWickOpeningRange` renamed to `FeedSmallOpeningRange`
+  (total range 2.05, below the 2.5 threshold at the test's warmed
+  daily ATR of 10.0)
+- Test `Rejects_Opening_Range_With_Insufficient_Wicks` renamed to
+  `Rejects_Opening_Range_Below_Daily_ATR_Threshold`
+- All 26 tests pass
 
-## New: `LICENSE` file at repo root
+## Also shipped
 
-MIT licence for code. The HTML footer separately claims CC BY 4.0 for
-the written content. Kept as two licences because they serve different
-purposes: CC BY is better for prose (credit + adapt), MIT is the
-convention for code.
+The chart UX fix from the patched-by-hand analysis.html (default
+session = first session with a rectangle or trade; "Show all sessions"
+toggle) was pushed back into the template so future `analyse` runs
+benefit. Previously the file defaulted to the first calendar day,
+which was almost always empty and gave readers the impression the
+charts had no overlay data.
 
-## Fixed: win-rate percentage display
-
-The `HtmlReportWriter` (single-run report) was passing win rate as
-0.42 (fraction) but formatting it as `42.0%` in the template — which
-actually rendered as `0.4%` in the stats strip. Pre-existing bug from
-v0.3, just never noticed because we rarely looked at the per-run
-report's stats header.
-
-`r.Metrics.WinRate` is now multiplied by 100 at the JSON boundary in
-both writers. The analyse command's log output also displays the
-correct percentage.
-
-## New launch profile
-
-★ **Build analysis.html (the publishable artifact)** — top of the
-dropdown, one click to produce the HTML.
-
-## Tests
-
-26/26 pass. No new tests specifically for the analysis writer —
-it's effectively a presentation layer around the existing payload
-builder, and the integration test is running the command end-to-end.
-
-## What this release doesn't address
-
-- The 1-tranche loss / 2+ tranche win asymmetry described in the
-  analysis is exposed in the tranche table but not *charted*. A
-  two-line equity curve ("1-tranche trades only" vs "2+ tranche only")
-  would make the finding visceral instead of just tabular. Deferred
-  to v0.8 if publishing feedback suggests it's needed.
-- Per-bar stop-line visualisation is still a placeholder toggle
-- Exit-reason labelling still shows "Stop-loss hit" for trailing-stop
-  wins
+`text-align: justify` on prose paragraphs also ported into the
+template.
 
 ## What to do next
 
-1. Extract the zip over your existing project
-2. Pick the "★ Build analysis.html" profile, F5
-3. Open `analysis.html` in a browser
-4. Edit the DRAFT sections directly in the HTML file (search for
-   `class="placeholder"`). No rebuild needed — save and refresh
-5. When the prose is ready, publish: GitHub repo with the HTML as
-   a release artifact, or host it somewhere (analysis.html is a single
-   file, trivially hostable on GitHub Pages, Netlify, your own site)
+1. Extract the zip, rebuild
+2. Delete the old `out_*` folders and the old `analysis.html`
+3. Run the "★ Build analysis.html" launch profile again
+4. **Look at the new numbers before editing anything.** The trade
+   counts will be different — almost certainly higher. Win rates,
+   expectancy, and the pyramid-tranche split may also look different.
+   Those new numbers are the first honest test of the strategy.
+
+## About the previous analysis.html
+
+The prose in the analysis.html you were preparing to publish was
+written against v0.7 numbers that no longer hold. **Do not publish
+that file.** If you still want to publish a write-up, it has to be
+rewritten against the v0.8 results and include an honest section on
+the spec correction itself — the story of "I implemented this, got
+a negative result, discovered my implementation was wrong, corrected
+it, and here's what came out of the correct version" is more
+credible than quietly replacing the numbers.
+
+## Tests
+
+26/26 pass.
+
+## What this release doesn't address
+
+- The earlier inherited issues (avg_entry precision, exit-reason
+  labelling, stop-line placeholder, ending-equity mismatch)
+  remain open

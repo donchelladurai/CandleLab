@@ -89,7 +89,7 @@ internal static class AnalyseCommand
             {
                 OpeningRangeMinutes = 15,
                 OpeningRangeValidForMinutes = 90,
-                MinWickRatioOfAtr = 0.10m,
+                MinCandleSizeRatioOfDailyAtr = 0.10m,
                 AtrPeriod = 14,
                 RequireConfirmationCandle = false,
                 Mode = mode,

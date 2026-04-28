@@ -8,11 +8,11 @@ namespace CandleLab.Strategies;
 /// FLOW (one shot per trading day):
 ///   1. Aggregate the first OpeningRangeMinutes (default 15) of bars into a
 ///      synthetic opening candle.
-///   2. Check the "manipulation candle" filter: both wicks must be at least
-///      MinWickRatioOfAtr of the 15-min ATR. No rejection at both extremes
-///      → no setup today. The "manipulation" framing is narrative; what
-///      we're really measuring is elevated rejection symmetry on a volatile
-///      open — which tends to precede range-bound sessions.
+///   2. Check the "significant open" filter: the opening candle's total size
+///      (high - low) must be at least MinCandleSizeRatioOfDailyAtr of the
+///      14-day ATR. Small or quiet opens are skipped. Prior versions
+///      (v0.1-v0.7) mistakenly tested both wicks vs the 15-min ATR — a
+///      completely different filter that produced much sparser signals.
 ///   3. Draw a rectangle at the opening candle's [high, low]. Valid for
 ///      OpeningRangeValidForMinutes from the open.
 ///   4. Wait for price to close outside the rectangle (either side).
@@ -57,6 +57,16 @@ public sealed class OpeningRangeManipulationStrategy : IStrategy, IVisualisableS
     private readonly Queue<decimal> _recentDailyCloses = new();
     private decimal? _yesterdayClose;
     private decimal? _yesterdayMaAtClose; // SMA computed at yesterday's close
+
+    /// <summary>
+    /// Rolling daily true-range history. Each entry is one completed trading
+    /// session's true range: max(high-low, |high - prevClose|, |low - prevClose|).
+    /// Used to compute the daily ATR referenced by the opening-range size filter.
+    /// </summary>
+    private readonly Queue<decimal> _recentDailyTrueRanges = new();
+    private decimal? _todayHigh;
+    private decimal? _todayLow;
+    private decimal? _previousDailyClose;
 
     /// <summary>
     /// Per-minute-of-day rolling volume history. Key = minute of day (0-1439),
@@ -106,6 +116,11 @@ public sealed class OpeningRangeManipulationStrategy : IStrategy, IVisualisableS
         // We always track the latest close as today's close-so-far; it
         // becomes "yesterday's close" when the next day's bar arrives.
         _todayLatestClose = candle.Close;
+
+        // Track today's intraday high/low so we can finalise yesterday's
+        // daily candle on the next day rollover (for daily-ATR calculation).
+        _todayHigh = _todayHigh is null ? candle.High : Math.Max(_todayHigh.Value, candle.High);
+        _todayLow = _todayLow is null ? candle.Low : Math.Min(_todayLow.Value, candle.Low);
 
         // Relative-volume tracker: keep a rolling history of volume observations
         // for each minute-of-day slot. "Is this bar's volume high?" then becomes
@@ -192,7 +207,7 @@ public sealed class OpeningRangeManipulationStrategy : IStrategy, IVisualisableS
 
     private void OnDayChange(DateOnly newDay)
     {
-        // Finalise yesterday's data for the HTF filter.
+        // Finalise yesterday's data for the HTF filter and daily ATR.
         if (_currentDay.HasValue && _todayLatestClose > 0m)
         {
             _recentDailyCloses.Enqueue(_todayLatestClose);
@@ -206,10 +221,32 @@ public sealed class OpeningRangeManipulationStrategy : IStrategy, IVisualisableS
             _yesterdayMaAtClose = _recentDailyCloses.Count >= _cfg.HtfMaPeriod
                 ? _recentDailyCloses.Average()
                 : null;
+
+            // Daily true range — uses today's accumulated H/L and the previous
+            // daily close as the gap-reference. Enqueued for daily-ATR lookup.
+            if (_todayHigh.HasValue && _todayLow.HasValue)
+            {
+                var prevClose = _previousDailyClose;
+                var dailyTr = prevClose is null
+                    ? _todayHigh.Value - _todayLow.Value
+                    : Math.Max(_todayHigh.Value - _todayLow.Value,
+                        Math.Max(
+                            Math.Abs(_todayHigh.Value - prevClose.Value),
+                            Math.Abs(_todayLow.Value - prevClose.Value)));
+
+                _recentDailyTrueRanges.Enqueue(dailyTr);
+                while (_recentDailyTrueRanges.Count > _cfg.DailyAtrPeriod)
+                {
+                    _recentDailyTrueRanges.Dequeue();
+                }
+                _previousDailyClose = _todayLatestClose;
+            }
         }
 
         // Reset per-day state for the new day.
         _currentDay = newDay;
+        _todayHigh = null;
+        _todayLow = null;
         _phase = Phase.AggregatingOpeningRange;
         _openingRangeBars.Clear();
         _rectangleTop = 0m;
@@ -236,29 +273,30 @@ public sealed class OpeningRangeManipulationStrategy : IStrategy, IVisualisableS
 
         // Build the synthetic opening candle.
         var first = _openingRangeBars[0];
-        var last = _openingRangeBars[^1];
         var top = _openingRangeBars.Max(b => b.High);
         var bottom = _openingRangeBars.Min(b => b.Low);
-        var open = first.Open;
-        var close = last.Close;
+        var candleSize = top - bottom;
 
-        var upperWick = top - Math.Max(open, close);
-        var lowerWick = Math.Min(open, close) - bottom;
-
-        var atr = CurrentFifteenMinAtr();
-        if (atr is null || atr <= 0m)
+        // Corrected v0.8 filter: the opening 15-min candle's total size must be
+        // at least MinCandleSizeRatioOfDailyAtr (default 25%) of the 14-day ATR.
+        // This replaces the v0.1-v0.7 wick-based filter, which was my
+        // misinterpretation of the spec — the original criterion is whether
+        // the opening candle is "big enough" on a daily scale, not whether
+        // both wicks are significant.
+        var dailyAtr = CurrentDailyAtr();
+        if (dailyAtr is null || dailyAtr <= 0m)
         {
             if (DebugLog)
-                Console.WriteLine($"[{first.Timestamp:d}] OR skipped: ATR not warm (have {_recent15MinTrueRanges.Count})");
+                Console.WriteLine($"[{first.Timestamp:d}] OR skipped: daily ATR not warm (have {_recentDailyTrueRanges.Count})");
             _phase = Phase.Done;
             return;
         }
 
-        var threshold = atr.Value * _cfg.MinWickRatioOfAtr;
-        if (upperWick < threshold || lowerWick < threshold)
+        var threshold = dailyAtr.Value * _cfg.MinCandleSizeRatioOfDailyAtr;
+        if (candleSize < threshold)
         {
             if (DebugLog)
-                Console.WriteLine($"[{first.Timestamp:d}] OR skipped: wicks U={upperWick:F2} L={lowerWick:F2} < thr={threshold:F2} (ATR={atr:F2})");
+                Console.WriteLine($"[{first.Timestamp:d}] OR skipped: size {candleSize:F2} < thr {threshold:F2} (dATR={dailyAtr:F2})");
             _phase = Phase.Done;
             return;
         }
@@ -268,7 +306,7 @@ public sealed class OpeningRangeManipulationStrategy : IStrategy, IVisualisableS
         _rectangleExpiresAt = first.Timestamp + TimeSpan.FromMinutes(_cfg.OpeningRangeValidForMinutes);
         _phase = Phase.RectangleActive;
         if (DebugLog)
-            Console.WriteLine($"[{first.Timestamp:d}] Rectangle active: [{_rectangleBottom:F2}, {_rectangleTop:F2}] expires {_rectangleExpiresAt:HH:mm} (ATR={atr:F2})");
+            Console.WriteLine($"[{first.Timestamp:d}] Rectangle active: [{_rectangleBottom:F2}, {_rectangleTop:F2}] (size={candleSize:F2}, dATR={dailyAtr:F2}) expires {_rectangleExpiresAt:HH:mm}");
     }
 
     /// <summary>Toggle for diagnostic output during backtests.</summary>
@@ -461,6 +499,12 @@ public sealed class OpeningRangeManipulationStrategy : IStrategy, IVisualisableS
     {
         if (_recent15MinTrueRanges.Count < _cfg.AtrPeriod) return null;
         return _recent15MinTrueRanges.Average();
+    }
+
+    private decimal? CurrentDailyAtr()
+    {
+        if (_recentDailyTrueRanges.Count < _cfg.DailyAtrPeriod) return null;
+        return _recentDailyTrueRanges.Average();
     }
 
     // ─── Pyramid (near-identical to OneCandleStrategy) ──────────────────

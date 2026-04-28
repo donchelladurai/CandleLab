@@ -7,22 +7,22 @@
     },
     "1. SPY reversal RELAXED (per-run report)": {
       "commandName": "Project",
-      "commandLineArgs": "symbol=SPY_iex strategy=openingrange nohtf=true mode=reversal wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_spy_reversal",
+      "commandLineArgs": "symbol=SPY_iex strategy=openingrange nohtf=true mode=reversal sizeratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_spy_reversal",
       "workingDirectory": "$(SolutionDir)"
     },
     "2. SPY continuation RELAXED (per-run report)": {
       "commandName": "Project",
-      "commandLineArgs": "symbol=SPY_iex strategy=openingrange nohtf=true mode=continuation wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_spy_continuation",
+      "commandLineArgs": "symbol=SPY_iex strategy=openingrange nohtf=true mode=continuation sizeratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_spy_continuation",
       "workingDirectory": "$(SolutionDir)"
     },
     "3. QQQ reversal RELAXED (per-run report)": {
       "commandName": "Project",
-      "commandLineArgs": "symbol=QQQ_iex strategy=openingrange nohtf=true mode=reversal wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_qqq_reversal",
+      "commandLineArgs": "symbol=QQQ_iex strategy=openingrange nohtf=true mode=reversal sizeratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_qqq_reversal",
       "workingDirectory": "$(SolutionDir)"
     },
     "4. QQQ continuation RELAXED (per-run report)": {
       "commandName": "Project",
-      "commandLineArgs": "symbol=QQQ_iex strategy=openingrange nohtf=true mode=continuation wickratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_qqq_continuation",
+      "commandLineArgs": "symbol=QQQ_iex strategy=openingrange nohtf=true mode=continuation sizeratio=0.10 bodyratio=0.45 bodymult=1.2 volmult=0 out=./out_qqq_continuation",
       "workingDirectory": "$(SolutionDir)"
     },
     "Fetch SPY+QQQ (iex+sip, last 12mo)": {

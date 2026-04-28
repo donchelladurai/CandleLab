@@ -132,7 +132,7 @@ public static class Program
             {
                 OpeningRangeMinutes = 15,
                 OpeningRangeValidForMinutes = 90,
-                MinWickRatioOfAtr = a.WickRatio,
+                MinCandleSizeRatioOfDailyAtr = a.SizeRatio,
                 AtrPeriod = 14,
                 RequireConfirmationCandle = false,
                 Mode = a.Mode,
@@ -170,7 +170,7 @@ internal sealed record RunArgs(
     bool Debug,
     bool NoHtf,
     // OpeningRange filter thresholds (exposed for parameter sweeps).
-    decimal WickRatio,
+    decimal SizeRatio,
     decimal BodyRatio,
     decimal BodyMult,
     decimal VolMult,
@@ -203,7 +203,7 @@ internal sealed record RunArgs(
             Strategy: ParseStrategy(map.GetValueOrDefault("strategy") ?? "onecandle"),
             Debug: bool.Parse(map.GetValueOrDefault("debug") ?? "false"),
             NoHtf: bool.Parse(map.GetValueOrDefault("nohtf") ?? "false"),
-            WickRatio: Dec("wickratio", "0.25"),
+            SizeRatio: Dec("sizeratio", "0.25"),
             BodyRatio: Dec("bodyratio", "0.6"),
             BodyMult: Dec("bodymult", "1.5"),
             VolMult: Dec("volmult", "1.2"),

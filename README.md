@@ -2,15 +2,17 @@
 
 A .NET backtesting framework for candlestick trading strategies, built to dispassionately validate claims about what works in the markets before risking real money.
 
-## Why did I do this?
+## Why this exists
 
 There's no shortage of trading strategies pitched online — YouTube videos, Discord servers, TikTok reels, paid courses. Almost all arrive with confident claims and impressive-looking charts. Almost none arrive with a rigorous backtest on real data.
 
-I created CandleLab because I wanted to answer a simple question, to myself as much as for everyone: do these strategies actually work when you test them honestly? Not in the sense of "find a configuration where the backtest looks nice" — that's easy, and it's what podcasters show you and how people end up losing real money in the real world. 
+CandleLab exists because I wanted to answer a simple question: do these strategies actually work when you test them honestly? Not in the sense of "find a configuration where the backtest looks nice" — that's easy, and it's how people end up losing real money. In the sense of: take the strategy as specified, code it exactly, run it against a meaningful amount of real data, and see what happens.
 
-What I've done here: take the strategy as specified (total text book), code it exactly, run it against a meaningful amount of real data, and see what happens.
+This repo contains the framework, the strategy implementations, the data fetcher for Alpaca, a visualiser, and the methodology for reproducing results yourself.
 
-The first strategy I put through this process — a popular ICT "opening-range manipulation candle" setup — did not produce positive expectancy on SPY or QQQ over the last 12 months, in either directional interpretation, with or without relaxed filters. That finding is documented in the generated `analysis.html` report. The code, the data pipeline, and the methodology are all in this repo so you can reproduce it, argue with it, or test your own variants.
+## A note on release history
+
+The project went through v0.1 to v0.7 with an implementation error in the opening-range manipulation strategy. The wick-based filter in those versions did not match the spec — the correct test is on total candle size versus the daily ATR, not on individual wicks versus a 15-min ATR. This was caught and corrected in v0.8. Any backtest numbers from the earlier versions should be treated as invalid. The CHANGES.md file documents the correction in full. v0.8 results are the first honest test of the strategy as specified.
 
 ## What's here
 
@@ -18,7 +20,7 @@ The first strategy I put through this process — a popular ICT "opening-range m
 - **Two strategy implementations.** A generic one-candle detector (baseline) and the opening-range manipulation strategy. Both configurable via CLI args. New strategies are one `IStrategy` class away.
 - **Alpaca historical data fetcher.** Downloads 5-minute bars (IEX or SIP feed) to local CSVs with pagination, rate-limit backoff, and retry. Credentials live in a gitignored `alpaca.json` file.
 - **HTML visualiser.** Every backtest produces a self-contained HTML report with day-by-day candlestick charts, overlaid strategy events (opening range, breakout, rejection, entry, exit), toggleable layers, and hover tooltips. Runs offline, shareable as a single file.
-- **Publishable analysis artifact.** A separate writer that embeds multiple runs' data into one HTML with commentary sections, cross-run comparison tables, and an interactive chart switcher. This is the file you get when you publish a finding.
+- **Publishable analysis artifact.** A separate writer that embeds multiple runs' data into one HTML with commentary sections, cross-run comparison tables, and an interactive chart switcher.
 - **Unit tests.** 26 passing, covering strategy state machines, pyramid logic, volume filters, session boundaries, and Alpaca JSON parsing.
 
 ## Quick start
@@ -26,7 +28,7 @@ The first strategy I put through this process — a popular ICT "opening-range m
 ### Prerequisites
 
 - .NET 10 SDK
-- An Alpaca paper-trading account ([free to create](https://app.alpaca.markets/signup))
+- An Alpaca paper-trading account (free to create)
 
 ### Set up credentials
 
@@ -93,38 +95,25 @@ Two principles drive the design:
 
 2. **Broker-agnostic execution.** `IExecutor` is the abstraction between strategy logic and order handling. `BacktestExecutor` simulates fills with realistic costs. A hypothetical future `AlpacaPaperExecutor` or `IGExecutor` would slot in behind the same interface without touching strategy code.
 
-## The first finding
+## The strategy being tested
 
-The opening-range manipulation strategy, as commonly described in ICT content, works like this:
+The opening-range manipulation strategy, as described in ICT-adjacent content, works like this:
 
 1. Wait 15 minutes after market open
-2. Check if the opening candle has "manipulation" wicks (both wicks at least 25% of ATR)
+2. Check if the opening 15-min candle's total range is at least 25% of the 14-day ATR
 3. Draw a rectangle at the opening candle's high/low, valid for ~90 minutes
 4. Wait for price to break outside the rectangle
 5. Enter on a strong signal candle in the (reversal: opposite / continuation: same) direction
 6. Stop at the signal candle's opposite extreme
 7. Pyramid on continuation
 
-Tested on 12 months of SPY and QQQ 5-minute data (April 2025 to April 2026, via Alpaca IEX), with realistic costs (half-cent spread, 2-cent stop slippage) and 1% risk per trade, across both direction interpretations and with relaxed filters to maximise trade count:
+As of v0.8 I've tested this with the corrected filter. The `analyse` command produces a side-by-side comparison of the four possible interpretations ({SPY, QQQ} × {reversal, continuation}) on 12 months of 5-minute data. Open the generated `analysis.html` to see the results.
 
-| Configuration | Trades | Win % | Net P&L | Expectancy |
-|---|---|---|---|---|
-| SPY reversal | 105 | 41.9% | −$2,343 | −$22 |
-| SPY continuation | 106 | 38.7% | −$2,869 | −$27 |
-| QQQ reversal | 84 | 46.4% | −$1,273 | −$15 |
-| QQQ continuation | 108 | 48.1% | −$1,464 | −$14 |
+## Scope and limits
 
-All four lose money. The losses are roughly symmetric between longs and shorts, which rules out a simple trend-filter fix.
+Whatever the v0.8 test shows, it's one setup on two instruments over one year at one timeframe. That's not a verdict on all ICT material, all opening-range strategies, all timeframes, or all market conditions. It's a verdict on this specific configuration on this specific data.
 
-The pyramid mechanics are worth looking at separately. Every trade with a single tranche (position opened, never added to) lost. Every trade with two or more tranches (pyramided after +1R profit, lock-in stop in place) won. This holds across all four configurations. The pyramid isn't creating edge — it's revealing that roughly 40-48% of trades make it past the first add threshold, and the other 52-60% stop out before they can, which is the actual coin-flip underneath the strategy.
-
-Open `analysis.html` after running the analyse command to see the full breakdown with interactive charts.
-
-## Scope and limits of this finding
-
-I tested one setup, on two instruments, over one year, at one timeframe, with one set of execution-cost assumptions. That's not a verdict on all ICT material, all opening-range strategies, all timeframes, or all market conditions. It's a verdict on this specific configuration on this specific data.
-
-If you think the strategy works and mine doesn't, fork the repo and change what you think I got wrong. The whole point of publishing the code is that the claim is now falsifiable by anyone willing to run it.
+If you disagree with a result, fork the repo and change what you think I got wrong. The whole point of publishing the code is that the claim is now falsifiable by anyone willing to run it.
 
 ## What I'd welcome
 
@@ -133,7 +122,7 @@ If you think the strategy works and mine doesn't, fork the repo and change what 
 - Improvements to execution-cost modelling
 - Feedback on the visualiser
 
-What I'm less interested in: "you didn't use the real ICT timeframe" or similar unfalsifiable objections unless they come with a specific, testable correction.
+What I'm less interested in: unfalsifiable objections ("you didn't use the real ICT timeframe") unless they come with a specific, testable correction.
 
 ## Licence
 
@@ -145,4 +134,4 @@ Written content (the README, the analysis commentary) is [CC BY 4.0](https://cre
 
 Don Chelladurai — [GitHub](https://github.com/donchelladurai)
 
-Not financial advice. This is personal research published for educational purposes. Anything in this repo that resembles trading guidance is coincidental, and you should never risk capital on a strategy you haven't independently validated. Trade safe ;)
+Not financial advice. This is personal research published for educational purposes. Anything in this repo that resembles trading guidance is coincidental, and you should never risk capital on a strategy you haven't independently validated.

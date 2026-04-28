@@ -22,8 +22,9 @@ public class OpeningRangeManipulationStrategyTests
     {
         OpeningRangeMinutes = 15,
         OpeningRangeValidForMinutes = 90,
-        MinWickRatioOfAtr = 0.25m,
+        MinCandleSizeRatioOfDailyAtr = 0.25m,
         AtrPeriod = 2,
+        DailyAtrPeriod = 2,
         RequireConfirmationCandle = false,
         SignalBodyMultiplier = 1.5m,
         MinBodyRatio = 0.6m,
@@ -44,9 +45,8 @@ public class OpeningRangeManipulationStrategyTests
         var strategy = new OpeningRangeManipulationStrategy("SPY", BaseConfig());
         var harness = new Harness(strategy);
 
-        // Two days of prior 15-min slices to warm up ATR.
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 100m);
+        // Two days of prior bars to warm up the daily ATR queue.
+        harness.FeedWarmupDaysBefore(DayStart(1));
 
         harness.FeedManipulationOpeningRange(DayStart(1));
 
@@ -57,15 +57,12 @@ public class OpeningRangeManipulationStrategyTests
     }
 
     [Fact]
-    public void Rejects_Opening_Range_With_Insufficient_Wicks()
+    public void Rejects_Opening_Range_Below_Daily_ATR_Threshold()
     {
         var strategy = new OpeningRangeManipulationStrategy("SPY", BaseConfig());
-        var harness = new Harness(strategy);
+        var harness = new Harness(strategy);        harness.FeedWarmupDaysBefore(DayStart(1));
 
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 100m);
-
-        harness.FeedSmallWickOpeningRange(DayStart(1));
+        harness.FeedSmallOpeningRange(DayStart(1));
 
         var snap = strategy.GetSnapshot();
         snap.Phase.Should().Be(OpeningRangeManipulationStrategy.Phase.Done);
@@ -76,10 +73,7 @@ public class OpeningRangeManipulationStrategyTests
     public void Upward_Break_Then_Bearish_Rejection_Emits_Short_Entry()
     {
         var strategy = new OpeningRangeManipulationStrategy("SPY", BaseConfig());
-        var harness = new Harness(strategy);
-
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 100m);
+        var harness = new Harness(strategy);        harness.FeedWarmupDaysBefore(DayStart(1));
 
         harness.FeedManipulationOpeningRange(DayStart(1));
         // Rectangle [96, 106]. Now feed modest history bars inside the rectangle
@@ -110,10 +104,7 @@ public class OpeningRangeManipulationStrategyTests
     public void Downward_Break_Then_Bullish_Rejection_Emits_Long_Entry()
     {
         var strategy = new OpeningRangeManipulationStrategy("SPY", BaseConfig());
-        var harness = new Harness(strategy);
-
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 100m);
+        var harness = new Harness(strategy);        harness.FeedWarmupDaysBefore(DayStart(1));
 
         harness.FeedManipulationOpeningRange(DayStart(1));
 
@@ -142,10 +133,7 @@ public class OpeningRangeManipulationStrategyTests
     {
         var cfg = BaseConfig() with { OpeningRangeValidForMinutes = 30 };
         var strategy = new OpeningRangeManipulationStrategy("SPY", cfg);
-        var harness = new Harness(strategy);
-
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 100m);
+        var harness = new Harness(strategy);        harness.FeedWarmupDaysBefore(DayStart(1));
 
         harness.FeedManipulationOpeningRange(DayStart(1));
         // Rectangle drawn at minute 0; valid for 30 min → expires at minute 30.
@@ -170,13 +158,11 @@ public class OpeningRangeManipulationStrategyTests
         var strategy = new OpeningRangeManipulationStrategy("SPY", cfg);
         var harness = new Harness(strategy);
 
-        // Arrange daily closes: day -1 @ 100, day 0 @ 102.
-        // At day 1, MA (last 2) = 101, yesterday's close (day 0) = 102 → bullish.
-        // We also need 2 15-min slices for ATR warmup. Pack both into day -1 & 0.
-        harness.FeedBoring15MinSlice(DayStart(-1), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(-1, minute: 15), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 102m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 102m);
+        // Arrange daily closes for HTF MA: day -1 closes at 100, day 0 at 102.
+        // At day 1, MA(last 2) = 101, yesterday's close (day 0) = 102 → bullish.
+        // Same warmup also fills the daily-ATR queue (2 entries of range 10.0).
+        harness.FeedBar(DayStart(-1).AddHours(-1), open: 100m, high: 105m, low: 95m, close: 100m);
+        harness.FeedBar(DayStart(0).AddHours(-1),  open: 100m, high: 107m, low: 97m, close: 102m);
 
         harness.FeedManipulationOpeningRange(DayStart(1));
 
@@ -199,10 +185,7 @@ public class OpeningRangeManipulationStrategyTests
     {
         var cfg = BaseConfig() with { RequireConfirmationCandle = true };
         var strategy = new OpeningRangeManipulationStrategy("SPY", cfg);
-        var harness = new Harness(strategy);
-
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 100m);
+        var harness = new Harness(strategy);        harness.FeedWarmupDaysBefore(DayStart(1));
 
         harness.FeedManipulationOpeningRange(DayStart(1));
 
@@ -232,12 +215,9 @@ public class OpeningRangeManipulationStrategyTests
     public void State_Resets_Between_Days()
     {
         var strategy = new OpeningRangeManipulationStrategy("SPY", BaseConfig());
-        var harness = new Harness(strategy);
+        var harness = new Harness(strategy);        harness.FeedWarmupDaysBefore(DayStart(1));
 
-        harness.FeedBoring15MinSlice(DayStart(0), closeAt: 100m);
-        harness.FeedBoring15MinSlice(DayStart(0, minute: 15), closeAt: 100m);
-
-        harness.FeedSmallWickOpeningRange(DayStart(1));
+        harness.FeedSmallOpeningRange(DayStart(1));
         strategy.GetSnapshot().Phase.Should().Be(OpeningRangeManipulationStrategy.Phase.Done);
 
         harness.FeedManipulationOpeningRange(DayStart(2));
@@ -284,6 +264,30 @@ public class OpeningRangeManipulationStrategyTests
         }
 
         /// <summary>
+        /// Feeds one bar per prior trading day so the daily ATR queue fills.
+        /// With DailyAtrPeriod=2 in the test config, two warmup days produce
+        /// a 2-element queue by the time the caller feeds their test day.
+        /// Each warmup day uses a 10.0 range (H=105, L=95, C=100) so the daily
+        /// ATR lands at 10.0 — manipulation range (size 10.0) passes the
+        /// 25% × 10 = 2.5 threshold comfortably; small range (size 2.05) fails.
+        ///
+        /// The `testDay` argument is the day on which the caller will feed
+        /// their opening range. This helper feeds bars on the two preceding
+        /// days. The caller's first bar on testDay triggers OnDayChange which
+        /// finalises the last warmup day — so by the time the filter runs,
+        /// both warmup days are enqueued.
+        /// </summary>
+        public void FeedWarmupDaysBefore(DateTimeOffset testDay)
+        {
+            var day0 = testDay.AddDays(-2).Date;
+            var day1 = testDay.AddDays(-1).Date;
+            FeedBar(new DateTimeOffset(day0, TimeSpan.Zero).AddHours(14.5),
+                open: 100m, high: 105m, low: 95m, close: 100m);
+            FeedBar(new DateTimeOffset(day1, TimeSpan.Zero).AddHours(14.5),
+                open: 100m, high: 105m, low: 95m, close: 100m);
+        }
+
+        /// <summary>
         /// Feeds three 5-min bars that aggregate to a boring 15-min slice with
         /// range 1.0 centred on closeAt.
         /// </summary>
@@ -309,8 +313,11 @@ public class OpeningRangeManipulationStrategyTests
             FeedBar(start.AddMinutes(10),  open: 98m,  high: 102.5m, low: 97.5m, close: 102m);
         }
 
-        /// <summary>Aggregates to a candle with tiny wicks — fails the filter.</summary>
-        public void FeedSmallWickOpeningRange(DateTimeOffset start)
+        /// <summary>
+        /// Aggregates to a candle with total range 2.05 — below the 2.5 threshold
+        /// (25% of a warmed-to-10.0 daily ATR), so the filter rejects it.
+        /// </summary>
+        public void FeedSmallOpeningRange(DateTimeOffset start)
         {
             FeedBar(start,                 open: 100m,    high: 100.1m, low: 99.95m, close: 100.05m);
             FeedBar(start.AddMinutes(5),   open: 100.05m, high: 101m,   low: 100m,   close: 100.95m);

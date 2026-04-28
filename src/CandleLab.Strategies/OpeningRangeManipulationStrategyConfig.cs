@@ -49,15 +49,22 @@ public sealed record OpeningRangeManipulationStrategyConfig
     // ─── Manipulation candle filter (Step 2) ────────────────────────────
 
     /// <summary>
-    /// Each of the opening 15-min candle's wicks (upper AND lower) must be
-    /// at least this fraction of the 15-min ATR for the setup to qualify.
-    /// 0.25 = 25%. The idea: non-trivial rejection at both extremes of the
-    /// opening range — consistent with a "liquidity sweep" pattern.
+    /// The opening 15-min candle's total size (high - low) must be at least
+    /// this fraction of the 14-day ATR for the setup to qualify. 0.25 = 25%.
+    /// The idea: the opening range needs to be a "meaningful" move on a daily
+    /// scale, not a quiet overnight drift. This replaces the v0.1-v0.7
+    /// wick-based filter, which was a misinterpretation of the original spec.
     /// </summary>
-    public decimal MinWickRatioOfAtr { get; init; } = 0.25m;
+    public decimal MinCandleSizeRatioOfDailyAtr { get; init; } = 0.25m;
 
     /// <summary>
-    /// ATR lookback in 15-min bars. Standard is 14.
+    /// Daily ATR lookback. Standard is 14 daily bars.
+    /// </summary>
+    public int DailyAtrPeriod { get; init; } = 14;
+
+    /// <summary>
+    /// Rejection-candle filter: ATR lookback in 15-min bars, used only for
+    /// body-size normalisation in downstream signal checks.
     /// </summary>
     public int AtrPeriod { get; init; } = 14;
 

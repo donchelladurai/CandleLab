@@ -46,7 +46,7 @@
   h3 { font-size: 16px; font-weight: 600; margin: 28px 0 8px; color: var(--text); }
 
   /* Prose */
-  p { font-size: 16px; line-height: 1.65; color: #c8ccd4; margin: 0 0 14px; }
+  p { font-size: 16px; line-height: 1.65; color: #c8ccd4; margin: 0 0 14px; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
   p.placeholder { color: var(--dim); font-style: italic; border-left: 3px solid var(--warn); padding-left: 12px; background: rgba(228,169,77,0.04); }
   p.placeholder::before { content: "DRAFT: "; color: var(--warn); font-weight: 600; font-style: normal; }
   em.note { color: var(--muted); font-style: italic; }
@@ -320,6 +320,9 @@
         <button id="prev" type="button">← Prev</button>
         <select id="daySelect"></select>
         <button id="next" type="button">Next →</button>
+        <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:var(--muted); cursor:pointer; user-select:none; margin-left:8px;">
+          <input type="checkbox" id="showAllSessions"> Show all sessions
+        </label>
       </div>
       <div class="layer-toggles">
         <label><input type="checkbox" data-layer="rectangle" checked> Rectangle</label>
@@ -432,15 +435,25 @@
   // ── Run switcher ──────────────────────────────────────────────
   const switcher = document.getElementById('runSwitcher');
   let currentRunIdx = 0;
-  let currentSessionIdx = 0;
+  let onlyInterestingSessions = true;
   const layers = { rectangle: true, breakout: true, rejection: true, entry: true, exit: true, volume: true };
+
+  function isInteresting(session) {
+    return session.trades.length > 0 || session.overlays.rectangle;
+  }
+  function firstInterestingSession(run) {
+    const idx = run.payload.sessions.findIndex(isInteresting);
+    return idx >= 0 ? idx : 0;
+  }
+
+  let currentSessionIdx = firstInterestingSession(RUNS[0]);
 
   RUNS.forEach((r, i) => {
     const btn = document.createElement('button');
     btn.textContent = r.label;
     btn.addEventListener('click', () => {
       currentRunIdx = i;
-      currentSessionIdx = 0;
+      currentSessionIdx = firstInterestingSession(RUNS[i]);
       renderRunUi();
       render();
     });
@@ -470,6 +483,7 @@
     const sel = document.getElementById('daySelect');
     sel.innerHTML = '';
     run.payload.sessions.forEach((session, i) => {
+      if (onlyInterestingSessions && !isInteresting(session)) return;
       const opt = document.createElement('option');
       opt.value = i;
       const flags = [];
@@ -484,6 +498,11 @@
   // ── Day navigation ────────────────────────────────────────────
   document.getElementById('daySelect').addEventListener('change', (e) => {
     currentSessionIdx = +e.target.value;
+    render();
+  });
+  document.getElementById('showAllSessions').addEventListener('change', (e) => {
+    onlyInterestingSessions = !e.target.checked;
+    renderRunUi();
     render();
   });
   document.getElementById('prev').addEventListener('click', () => {

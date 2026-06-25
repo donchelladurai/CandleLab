@@ -4,9 +4,7 @@ A .NET backtesting framework for candlestick trading strategies, built to dispas
 
 ## Why this exists
 
-There's no shortage of trading strategies pitched online — YouTube videos, Discord servers, TikTok reels, paid courses. Almost all arrive with confident claims and impressive-looking charts. Almost none arrive with a rigorous backtest on real data.
-
-CandleLab exists because I wanted to answer a simple question: do these strategies actually work when you test them honestly? Not in the sense of "find a configuration where the backtest looks nice" — that's easy, and it's how people end up losing real money. In the sense of: take the strategy as specified, code it exactly, run it against a meaningful amount of real data, and see what happens.
+I wanted to answer a simple question: do these strategies actually work when you test them honestly? In the sense of: take the strategy as specified, code it exactly, run it against a meaningful amount of real data, and see what happens. 
 
 This repo contains the framework, the strategy implementations, the data fetcher for Alpaca, a visualiser, and the methodology for reproducing results yourself.
 
